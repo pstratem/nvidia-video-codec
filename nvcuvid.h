@@ -1,7 +1,7 @@
 /*
  * This copyright notice applies to this header file only:
  *
- * Copyright (c) 2010-2018 NVIDIA Corporation
+ * Copyright (c) 2010-2019 NVIDIA Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -28,7 +28,7 @@
 /********************************************************************************************************************/
 //! \file nvcuvid.h
 //!   NVDECODE API provides video decoding interface to NVIDIA GPU devices.
-//! \date 2015-2018
+//! \date 2015-2019
 //!  This file contains the interface constants, structure definitions and function prototypes.
 /********************************************************************************************************************/
 
@@ -99,7 +99,11 @@ typedef struct
     unsigned char progressive_sequence;     /**< OUT: 0=interlaced, 1=progressive                                      */
     unsigned char bit_depth_luma_minus8;    /**< OUT: high bit depth luma. E.g, 2 for 10-bitdepth, 4 for 12-bitdepth   */
     unsigned char bit_depth_chroma_minus8;  /**< OUT: high bit depth chroma. E.g, 2 for 10-bitdepth, 4 for 12-bitdepth */
-    unsigned char reserved1;                /**< Reserved for future use                                               */
+    unsigned char min_num_decode_surfaces;  /**< OUT: Minimum number of decode surfaces to be allocated for correct 
+                                                      decoding. The client can send this value in 
+                                                      ulNumDecodeSurfaces (in CUVIDDECODECREATEINFO strcuture). 
+                                                      If this value is used for ulNumDecodeSurfaces then it has to 
+                                                      also be returned to parser during sequence callback.             */
     unsigned int coded_width;               /**< OUT: coded frame width in pixels                                      */
     unsigned int coded_height;              /**< OUT: coded frame height in pixels                                     */
    /**
@@ -173,10 +177,13 @@ typedef struct
 //! Used in CUVIDSOURCEDATAPACKET structure
 /***************************************************************/
 typedef enum {
-    CUVID_PKT_ENDOFSTREAM   = 0x01,   /**< Set when this is the last packet for this stream  */
-    CUVID_PKT_TIMESTAMP     = 0x02,   /**< Timestamp is valid                                */
-    CUVID_PKT_DISCONTINUITY = 0x04,   /**< Set when a discontinuity has to be signalled      */
-    CUVID_PKT_ENDOFPICTURE  = 0x08,   /**< Set when the packet contains exactly one frame    */
+    CUVID_PKT_ENDOFSTREAM   = 0x01,   /**< Set when this is the last packet for this stream                              */
+    CUVID_PKT_TIMESTAMP     = 0x02,   /**< Timestamp is valid                                                            */
+    CUVID_PKT_DISCONTINUITY = 0x04,   /**< Set when a discontinuity has to be signalled                                  */
+    CUVID_PKT_ENDOFPICTURE  = 0x08,   /**< Set when the packet contains exactly one frame or one field                   */
+    CUVID_PKT_NOTIFY_EOS    = 0x10,   /**< If this flag is set along with CUVID_PKT_ENDOFSTREAM, an additional (dummy)
+                                           display callback will be invoked with null value of CUVIDPARSERDISPINFO which
+                                           should be interpreted as end of the stream.                                   */
 } CUvideopacketflags;
 
 /*****************************************************************************/
@@ -230,9 +237,9 @@ typedef enum {
 /***************************************************************************************************************************/
 //! \ingroup FUNCTS
 //! \fn CUresult CUDAAPI cuvidCreateVideoSource(CUvideosource *pObj, const char *pszFileName, CUVIDSOURCEPARAMS *pParams)
-//! Create CUvideosource object. CUvideosource spawns demultiplexer thread that provides two callbacks:
+//! Create CUvideosource object. CUvideosource spawns demultiplexer thread that provides two callbacks: 
 //! pfnVideoDataHandler() and pfnAudioDataHandler()
-//! NVDECODE API is intended for HW accelerated video decoding so CUvideosource doesn't have audio demuxer for all supported
+//! NVDECODE API is intended for HW accelerated video decoding so CUvideosource doesn't have audio demuxer for all supported 
 //! containers. It's recommended to clients to use their own or third party demuxer if audio support is needed.
 /***************************************************************************************************************************/
 CUresult CUDAAPI cuvidCreateVideoSource(CUvideosource *pObj, const char *pszFileName, CUVIDSOURCEPARAMS *pParams);
@@ -283,7 +290,7 @@ CUresult CUDAAPI cuvidGetSourceVideoFormat(CUvideosource obj, CUVIDEOFORMAT *pvi
 //! \ingroup FUNCTS
 //! \fn CUresult CUDAAPI cuvidGetSourceAudioFormat(CUvideosource obj, CUAUDIOFORMAT *paudfmt, unsigned int flags)
 //! Get audio source format
-//! NVDECODE API is intended for HW accelerated video decoding so CUvideosource doesn't have audio demuxer for all supported
+//! NVDECODE API is intended for HW accelerated video decoding so CUvideosource doesn't have audio demuxer for all supported 
 //! containers. It's recommended to clients to use their own or third party demuxer if audio support is needed.
 /**************************************************************************************************************************/
 CUresult CUDAAPI cuvidGetSourceAudioFormat(CUvideosource obj, CUAUDIOFORMAT *paudfmt, unsigned int flags);
@@ -299,14 +306,14 @@ typedef struct _CUVIDPARSERDISPINFO
     int picture_index;          /**< OUT: Index of the current picture                                                         */
     int progressive_frame;      /**< OUT: 1 if progressive frame; 0 otherwise                                                  */
     int top_field_first;        /**< OUT: 1 if top field is displayed first; 0 otherwise                                       */
-    int repeat_first_field;     /**< OUT: Number of additional fields (1=ivtc, 2=frame doubling, 4=frame tripling,
+    int repeat_first_field;     /**< OUT: Number of additional fields (1=ivtc, 2=frame doubling, 4=frame tripling, 
                                      -1=unpaired field)                                                                        */
     CUvideotimestamp timestamp; /**< OUT: Presentation time stamp                                                              */
 } CUVIDPARSERDISPINFO;
 
 /***********************************************************************************************************************/
 //! Parser callbacks
-//! The parser will call these synchronously from within cuvidParseVideoData(), whenever there is seqeuence change or a picture
+//! The parser will call these synchronously from within cuvidParseVideoData(), whenever there is seqeuence change or a picture 
 //! is ready to be decoded and/or displayed. First argument in functions is "void *pUserData" member of structure CUVIDSOURCEPARAMS
 //! Return values from these callbacks are interpreted as:
 //! PFNVIDSEQUENCECALLBACK : 0: fail, 1: suceeded, > 1: override dpb size of parser (set by CUVIDPARSERPARAMS::ulMaxNumDecodeSurfaces
@@ -328,7 +335,7 @@ typedef struct _CUVIDPARSERPARAMS
     cudaVideoCodec CodecType;                   /**< IN: cudaVideoCodec_XXX                                                  */
     unsigned int ulMaxNumDecodeSurfaces;        /**< IN: Max # of decode surfaces (parser will cycle through these)          */
     unsigned int ulClockRate;                   /**< IN: Timestamp units in Hz (0=default=10000000Hz)                        */
-    unsigned int ulErrorThreshold;              /**< IN: % Error threshold (0-100) for calling pfnDecodePicture (100=always
+    unsigned int ulErrorThreshold;              /**< IN: % Error threshold (0-100) for calling pfnDecodePicture (100=always 
                                                      IN: call pfnDecodePicture even if picture bitstream is fully corrupted) */
     unsigned int ulMaxDisplayDelay;             /**< IN: Max display queue delay (improves pipelining of decode with display)
                                                          0=no delay (recommended values: 2..4)                               */
@@ -351,8 +358,8 @@ CUresult CUDAAPI cuvidCreateVideoParser(CUvideoparser *pObj, CUVIDPARSERPARAMS *
 /************************************************************************************************/
 //! \ingroup FUNCTS
 //! \fn CUresult CUDAAPI cuvidParseVideoData(CUvideoparser obj, CUVIDSOURCEDATAPACKET *pPacket)
-//! Parse the video data from source data packet in pPacket
-//! Extracts parameter sets like SPS, PPS, bitstream etc. from pPacket and
+//! Parse the video data from source data packet in pPacket 
+//! Extracts parameter sets like SPS, PPS, bitstream etc. from pPacket and 
 //! calls back pfnDecodePicture with CUVIDPICPARAMS data for kicking of HW decoding
 //! calls back pfnSequenceCallback with CUVIDEOFORMAT data for initial sequence header or when
 //! the decoder encounters a video format change

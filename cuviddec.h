@@ -1,7 +1,7 @@
 /*
  * This copyright notice applies to this header file only:
  *
- * Copyright (c) 2010-2018 NVIDIA Corporation
+ * Copyright (c) 2010-2019 NVIDIA Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -28,7 +28,7 @@
 /*****************************************************************************************************/
 //! \file cuviddec.h
 //! NVDECODE API provides video decoding interface to NVIDIA GPU devices.
-//! \date 2015-2018
+//! \date 2015-2019
 //! This file contains constants, structure definitions and function prototypes used for decoding.
 /*****************************************************************************************************/
 
@@ -87,6 +87,9 @@ typedef enum cudaVideoSurfaceFormat_enum {
     cudaVideoSurfaceFormat_NV12=0,          /**< Semi-Planar YUV [Y plane followed by interleaved UV plane]     */
     cudaVideoSurfaceFormat_P016=1,          /**< 16 bit Semi-Planar YUV [Y plane followed by interleaved UV plane].
                                                  Can be used for 10 bit(6LSB bits 0), 12 bit (4LSB bits 0)      */
+    cudaVideoSurfaceFormat_YUV444=2,        /**< Planar YUV [Y plane followed by U and V planes]                */
+    cudaVideoSurfaceFormat_YUV444_16Bit=3,  /**< 16 bit Planar YUV [Y plane followed by U and V planes]. 
+                                                 Can be used for 10 bit(6LSB bits 0), 12 bit (4LSB bits 0)      */
 } cudaVideoSurfaceFormat;
 
 /******************************************************************************************************************/
@@ -106,8 +109,6 @@ typedef enum cudaVideoDeinterlaceMode_enum {
 //! \enum cudaVideoChromaFormat
 //! Chroma format enums
 //! These enums are used in CUVIDDECODECREATEINFO and CUVIDDECODECAPS structures
-//! JPEG supports Monochrome, YUV 4:2:0, YUV 4:2:2 and YUV 4:4:4 chroma formats.
-//! H264, HEVC, VP9, VP8, VC1, MPEG1, MPEG2 and MPEG4 support YUV 4:2:0 chroma format only.
 /**************************************************************************************************************/
 typedef enum cudaVideoChromaFormat_enum {
     cudaVideoChromaFormat_Monochrome=0,  /**< MonoChrome */
@@ -141,7 +142,7 @@ typedef enum cuvidDecodeStatus_enum
     cuvidDecodeStatus_Success         = 2,   // Decode is completed without any errors
     // 3 to 7 enums are reserved for future use
     cuvidDecodeStatus_Error           = 8,   // Decode is completed with an error (error is not concealed)
-    cuvidDecodeStatus_Error_Concealed = 9,   // Decode is completed with an error and error is concealed
+    cuvidDecodeStatus_Error_Concealed = 9,   // Decode is completed with an error and error is concealed 
 } cuvidDecodeStatus;
 
 /**************************************************************************************************************/
@@ -181,11 +182,11 @@ typedef struct _CUVIDDECODECREATEINFO
     unsigned long bitDepthMinus8;       /**< IN: The value "BitDepth minus 8"                                               */
     unsigned long ulIntraDecodeOnly;    /**< IN: Set 1 only if video has all intra frames (default value is 0). This will
                                              optimize video memory for Intra frames only decoding. The support is limited
-                                             to specific codecs(H264 rightnow), the flag will be ignored for codecs which
+                                             to specific codecs - H264, HEVC, VP9, the flag will be ignored for codecs which
                                              are not supported. However decoding might fail if the flag is enabled in case
                                              of supported codecs for regular bit streams having P and/or B frames.          */
     unsigned long ulMaxWidth;           /**< IN: Coded sequence max width in pixels used with reconfigure Decoder           */
-    unsigned long ulMaxHeight;          /**< IN: Coded sequence max height in pixels used with reconfigure Decoder          */
+    unsigned long ulMaxHeight;          /**< IN: Coded sequence max height in pixels used with reconfigure Decoder          */                                           
     unsigned long Reserved1;            /**< Reserved for future use - set to zero                                          */
     /**
     * IN: area of the frame that should be displayed
@@ -202,7 +203,7 @@ typedef struct _CUVIDDECODECREATEINFO
     unsigned long ulTargetWidth;               /**< IN: Post-processed output width (Should be aligned to 2)           */
     unsigned long ulTargetHeight;              /**< IN: Post-processed output height (Should be aligned to 2)          */
     unsigned long ulNumOutputSurfaces;         /**< IN: Maximum number of output surfaces simultaneously mapped        */
-    CUvideoctxlock vidLock;                    /**< IN: If non-NULL, context lock used for synchronizing ownership of
+    CUvideoctxlock vidLock;                    /**< IN: If non-NULL, context lock used for synchronizing ownership of 
                                                     the cuda context. Needed for cudaVideoCreate_PreferCUDA decode     */
     /**
     * IN: target rectangle in the output frame (for aspect ratio conversion)
@@ -285,7 +286,7 @@ typedef struct _CUVIDH264SVCEXT
     short scaled_ref_layer_right_offset;
     short scaled_ref_layer_bottom_offset;
     unsigned short Reserved16Bits;
-    struct _CUVIDPICPARAMS *pNextLayer; /**< Points to the picparams for the next layer to be decoded.
+    struct _CUVIDPICPARAMS *pNextLayer; /**< Points to the picparams for the next layer to be decoded. 
                                              Linked list ends at the target layer. */
     int bRefBaseLayer;                  /**< whether to store ref base pic */
 } CUVIDH264SVCEXT;
@@ -560,7 +561,31 @@ typedef struct _CUVIDHEVCPICPARAMS
 
     unsigned short column_width_minus1[21];
     unsigned short row_height_minus1[21];
-    unsigned int   reserved3[15];
+
+    // sps and pps extension HEVC-main 444
+    unsigned char sps_range_extension_flag;
+    unsigned char transform_skip_rotation_enabled_flag;
+    unsigned char transform_skip_context_enabled_flag;
+    unsigned char implicit_rdpcm_enabled_flag;
+
+    unsigned char explicit_rdpcm_enabled_flag;
+    unsigned char extended_precision_processing_flag;
+    unsigned char intra_smoothing_disabled_flag;
+    unsigned char persistent_rice_adaptation_enabled_flag;
+
+    unsigned char cabac_bypass_alignment_enabled_flag;
+    unsigned char pps_range_extension_flag;
+    unsigned char cross_component_prediction_enabled_flag;
+    unsigned char chroma_qp_offset_list_enabled_flag;
+
+    unsigned char diff_cu_chroma_qp_offset_depth;
+    unsigned char chroma_qp_offset_list_len_minus1;
+    signed char cb_qp_offset_list[6];
+
+    signed char cr_qp_offset_list[6];
+    unsigned char reserved2[2];
+
+    unsigned int   reserved3[8];
 
     // RefPicSets
     int NumBitsForShortTermRPSInSlice;
@@ -708,7 +733,7 @@ typedef struct _CUVIDPICPARAMS
     unsigned int nBitstreamDataLen;        /**< IN: Number of bytes in bitstream data buffer                  */
     const unsigned char *pBitstreamData;   /**< IN: Ptr to bitstream data for this picture (slice-layer)      */
     unsigned int nNumSlices;               /**< IN: Number of slices in this picture                          */
-    const unsigned int *pSliceDataOffsets; /**< IN: nNumSlices entries, contains offset of each slice within
+    const unsigned int *pSliceDataOffsets; /**< IN: nNumSlices entries, contains offset of each slice within 
                                                         the bitstream data buffer                             */
     int ref_pic_flag;                      /**< IN: This picture is a reference picture                       */
     int intra_pic_flag;                    /**< IN: This picture is entirely intra coded                      */
@@ -797,7 +822,7 @@ typedef struct _CUVIDRECONFIGUREDECODERINFO
         short bottom;
     } target_rect;
     unsigned int reserved2[11]; /**< Reserved for future use. Set to Zero */
-} CUVIDRECONFIGUREDECODERINFO;
+} CUVIDRECONFIGUREDECODERINFO; 
 
 
 /***********************************************************************************************************/
@@ -836,7 +861,7 @@ typedef struct _CUVIDRECONFIGUREDECODERINFO
 //!    If IN parameters passed to the driver are not supported by NVDEC-HW, then all OUT params are set to 0.
 //! E.g. on Geforce GTX 960:
 //!   App fills - eCodecType = cudaVideoCodec_H264; eChromaFormat = cudaVideoChromaFormat_420; nBitDepthMinus8 = 0;
-//!   Given IN parameters are supported, hence driver fills: bIsSupported = 1; nMinWidth   = 48; nMinHeight  = 16;
+//!   Given IN parameters are supported, hence driver fills: bIsSupported = 1; nMinWidth   = 48; nMinHeight  = 16; 
 //!   nMaxWidth = 4096; nMaxHeight = 4096; nMaxMBCount = 65536;
 //! CodedWidth*CodedHeight/256 must be less than or equal to nMaxMBCount
 /**********************************************************************************************************************/
@@ -857,7 +882,7 @@ extern CUresult CUDAAPI cuvidDestroyDecoder(CUvideodecoder hDecoder);
 /*****************************************************************************************************/
 //! \fn CUresult CUDAAPI cuvidDecodePicture(CUvideodecoder hDecoder, CUVIDPICPARAMS *pPicParams)
 //! Decode a single picture (field or frame)
-//! Kicks off HW decoding
+//! Kicks off HW decoding 
 /*****************************************************************************************************/
 extern CUresult CUDAAPI cuvidDecodePicture(CUvideodecoder hDecoder, CUVIDPICPARAMS *pPicParams);
 
@@ -869,15 +894,15 @@ extern CUresult CUDAAPI cuvidGetDecodeStatus(CUvideodecoder hDecoder, int nPicId
 
 /*********************************************************************************************************/
 //! \fn CUresult CUDAAPI cuvidReconfigureDecoder(CUvideodecoder hDecoder, CUVIDRECONFIGUREDECODERINFO *pDecReconfigParams)
-//! Used to reuse single decoder for multiple clips. Currently supports resolution change, resize params, display area
-//! params, target area params change for same codec. Must be called during CUVIDPARSERPARAMS::pfnSequenceCallback
+//! Used to reuse single decoder for multiple clips. Currently supports resolution change, resize params, display area 
+//! params, target area params change for same codec. Must be called during CUVIDPARSERPARAMS::pfnSequenceCallback 
 /*********************************************************************************************************/
 extern CUresult CUDAAPI cuvidReconfigureDecoder(CUvideodecoder hDecoder, CUVIDRECONFIGUREDECODERINFO *pDecReconfigParams);
 
 
 #if !defined(__CUVID_DEVPTR64) || defined(__CUVID_INTERNAL)
 /************************************************************************************************************************/
-//! \fn CUresult CUDAAPI cuvidMapVideoFrame(CUvideodecoder hDecoder, int nPicIdx, unsigned int *pDevPtr,
+//! \fn CUresult CUDAAPI cuvidMapVideoFrame(CUvideodecoder hDecoder, int nPicIdx, unsigned int *pDevPtr, 
 //!                                         unsigned int *pPitch, CUVIDPROCPARAMS *pVPP);
 //! Post-process and map video frame corresponding to nPicIdx for use in cuda. Returns cuda device pointer and associated
 //! pitch of the video frame
@@ -895,7 +920,7 @@ extern CUresult CUDAAPI cuvidUnmapVideoFrame(CUvideodecoder hDecoder, unsigned i
 
 #if defined(_WIN64) || defined(__LP64__) || defined(__x86_64) || defined(AMD64) || defined(_M_AMD64)
 /****************************************************************************************************************************/
-//! \fn CUresult CUDAAPI cuvidMapVideoFrame64(CUvideodecoder hDecoder, int nPicIdx, unsigned long long *pDevPtr,
+//! \fn CUresult CUDAAPI cuvidMapVideoFrame64(CUvideodecoder hDecoder, int nPicIdx, unsigned long long *pDevPtr, 
 //!                                           unsigned int * pPitch, CUVIDPROCPARAMS *pVPP);
 //! Post-process and map video frame corresponding to nPicIdx for use in cuda. Returns cuda device pointer and associated
 //! pitch of the video frame
